@@ -95,6 +95,7 @@ interface Exam {
   subject: string;
   startTime: string;
   duration: number;
+  breakAfter: number;
   notes: string;
 }
 
@@ -106,18 +107,14 @@ export default function App() {
   const [schedule, setSchedule] = useState<Exam[]>(() => {
     const saved = localStorage.getItem('exam_schedule');
     return saved ? JSON.parse(saved) : [
-      { id: 1, subject: '國語', startTime: '08:45', duration: 40, notes: '第一大題為單選題，請注意畫卡。' },
-      { id: 2, subject: '數學', startTime: '10:30', duration: 40, notes: '第5題題目有誤，請看黑板修正哦！' },
-      { id: 3, subject: '英語', startTime: '13:30', duration: 40, notes: '包含聽力測驗，請注意聽廣播 🎧' }
+      { id: 1, subject: '國語', startTime: '08:45', duration: 40, breakAfter: 10, notes: '第一大題為單選題，請注意畫卡。' },
+      { id: 2, subject: '數學', startTime: '10:30', duration: 40, breakAfter: 10, notes: '第5題題目有誤，請看黑板修正哦！' },
+      { id: 3, subject: '英語', startTime: '13:30', duration: 40, breakAfter: 10, notes: '包含聽力測驗，請注意聽廣播 🎧' }
     ];
   });
   const [generalNotes, setGeneralNotes] = useState(() => {
     const saved = localStorage.getItem('exam_general_notes');
     return saved || '1. 🤫 考試期間請保持安靜\n2. ✏️ 桌面清空，只留文具\n3. 👀 寫完請仔細檢查，安靜等待交卷';
-  });
-  const [breakDuration, setBreakDuration] = useState(() => {
-    const saved = localStorage.getItem('exam_break_duration');
-    return saved ? parseInt(saved) : 10;
   });
 
   useEffect(() => {
@@ -127,10 +124,6 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('exam_general_notes', generalNotes);
   }, [generalNotes]);
-
-  useEffect(() => {
-    localStorage.setItem('exam_break_duration', breakDuration.toString());
-  }, [breakDuration]);
 
   const alertedRef = useRef<Record<number, { ready: boolean; warning: boolean; end: boolean; start: boolean }>>({});
 
@@ -213,15 +206,32 @@ export default function App() {
     if (schedule.length > 0) {
       const sorted = [...schedule].sort((a, b) => parseTime(a.startTime).getTime() - parseTime(b.startTime).getTime());
       const lastExam = sorted[sorted.length - 1];
-      // 下一節課開始時間 = 前一節結束時間 + 下課時間
-      nextStartTime = addMinutesToTimeStr(lastExam.startTime, Number(lastExam.duration) + breakDuration);
+      // 下一節課開始時間 = 前一節結束時間 + 該節設定的下課時間
+      nextStartTime = addMinutesToTimeStr(lastExam.startTime, Number(lastExam.duration) + Number(lastExam.breakAfter));
     }
     
-    setSchedule([...schedule, { id: newId, subject: '國語', startTime: nextStartTime, duration: 40, notes: '' }]);
+    setSchedule([...schedule, { id: newId, subject: '國語', startTime: nextStartTime, duration: 40, breakAfter: 10, notes: '' }]);
   };
 
   const updateExam = (id: number, field: keyof Exam, value: string | number) => {
-    setSchedule(schedule.map(exam => exam.id === id ? { ...exam, [field]: value } : exam));
+    const newSchedule = schedule.map(exam => exam.id === id ? { ...exam, [field]: value } : exam);
+    setSchedule(newSchedule);
+  };
+
+  const autoAlignSchedule = () => {
+    if (schedule.length <= 1) return;
+    
+    const sorted = [...schedule].sort((a, b) => parseTime(a.startTime).getTime() - parseTime(b.startTime).getTime());
+    const updated: Exam[] = [sorted[0]];
+    
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = updated[i - 1];
+      const current = sorted[i];
+      const nextStart = addMinutesToTimeStr(prev.startTime, Number(prev.duration) + Number(prev.breakAfter));
+      updated.push({ ...current, startTime: nextStart });
+    }
+    
+    setSchedule(updated);
   };
 
   const removeExam = (id: number) => {
@@ -394,20 +404,13 @@ export default function App() {
                   考試時間表
                 </h2>
                 <div className="flex gap-2 flex-wrap justify-end items-center">
-                  <div className="flex items-center gap-2 bg-sky-50 px-3 py-2 rounded-xl border border-sky-100">
-                    <span className="text-xs font-bold text-sky-700">下課時間:</span>
-                    <select 
-                      value={breakDuration}
-                      onChange={(e) => setBreakDuration(parseInt(e.target.value))}
-                      className="text-xs font-bold text-sky-800 bg-transparent outline-none cursor-pointer"
-                    >
-                      <option value={5}>5 分鐘</option>
-                      <option value={10}>10 分鐘</option>
-                      <option value={15}>15 分鐘</option>
-                      <option value={20}>20 分鐘</option>
-                      <option value={30}>30 分鐘</option>
-                    </select>
-                  </div>
+                  <button 
+                    onClick={autoAlignSchedule}
+                    className="flex items-center gap-1 text-sm font-bold text-amber-600 hover:text-amber-800 bg-amber-50 px-3 py-2 rounded-xl transition-colors"
+                    title="根據下課時間自動對齊所有考試時間"
+                  >
+                    <Clock className="w-5 h-5" /> 自動對齊
+                  </button>
                   <input 
                     type="file" 
                     id="import-schedule" 
@@ -480,6 +483,16 @@ export default function App() {
                           value={exam.duration}
                           onChange={(e) => updateExam(exam.id, 'duration', parseInt(e.target.value) || 0)}
                           className="w-full p-3 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-sky-100 focus:border-sky-400 outline-none transition-all font-bold text-gray-700"
+                        />
+                      </div>
+                      <div className="w-32 space-y-1">
+                        <label className="text-sm font-bold text-gray-500">下課(分鐘)</label>
+                        <input 
+                          type="number" 
+                          min="0"
+                          value={exam.breakAfter}
+                          onChange={(e) => updateExam(exam.id, 'breakAfter', parseInt(e.target.value) || 0)}
+                          className="w-full p-3 border-2 border-orange-100 rounded-xl focus:ring-4 focus:ring-orange-50 focus:border-orange-300 outline-none transition-all font-bold text-orange-700 bg-orange-50/30"
                         />
                       </div>
                       <div className="pt-7">
