@@ -107,9 +107,9 @@ export default function App() {
   const [schedule, setSchedule] = useState<Exam[]>(() => {
     const saved = localStorage.getItem('exam_schedule');
     return saved ? JSON.parse(saved) : [
-      { id: 1, subject: '國語', startTime: '08:45', duration: 40, breakAfter: 10, notes: '第一大題為單選題，請注意畫卡。' },
-      { id: 2, subject: '數學', startTime: '10:30', duration: 40, breakAfter: 10, notes: '第5題題目有誤，請看黑板修正哦！' },
-      { id: 3, subject: '英語', startTime: '13:30', duration: 40, breakAfter: 10, notes: '包含聽力測驗，請注意聽廣播 🎧' }
+      { id: 1, subject: '自然', startTime: '08:45', duration: 40, breakAfter: 10, notes: '第一大題為單選題，請注意畫卡。' },
+      { id: 2, subject: '國語', startTime: '09:35', duration: 40, breakAfter: 15, notes: '第5題題目有誤，請看黑板修正哦！' },
+      { id: 3, subject: '英語', startTime: '10:30', duration: 40, breakAfter: 10, notes: '包含聽力測驗，請注意聽廣播 🎧' }
     ];
   });
   const [generalNotes, setGeneralNotes] = useState(() => {
@@ -778,8 +778,13 @@ export default function App() {
               <h3 className="text-xl font-black text-orange-500 mb-4 pb-3 border-b-2 border-orange-100 flex items-center gap-2">
                 📋 考場小規則
               </h3>
-              <div className="whitespace-pre-wrap text-lg leading-relaxed text-gray-600 font-bold">
-                {generalNotes}
+              <div className="space-y-4">
+                {generalNotes.split('\n').filter(line => line.trim() !== '').map((line, i) => (
+                  <div key={i} className="text-lg leading-relaxed text-gray-600 font-bold flex gap-2 items-start">
+                    <span className="text-orange-300 mt-1 flex-shrink-0">•</span>
+                    <span>{line}</span>
+                  </div>
+                ))}
               </div>
             </div>
           )}
