@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Clock, Plus, Trash2, Volume2, AlertCircle, Play, Settings, Edit3, CheckCircle2 } from 'lucide-react';
+import { Clock, Plus, Trash2, Volume2, AlertCircle, Play, Settings, Edit3, CheckCircle2, Maximize, Minimize } from 'lucide-react';
 
 // --- 音效產生器 (Web Audio API) ---
 const playTone = (frequency: number, type: OscillatorType, duration: number, vol = 0.5) => {
@@ -101,13 +101,28 @@ interface Exam {
 export default function App() {
   const [mode, setMode] = useState<'setup' | 'exam'>('setup'); 
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [isFullScreen, setIsFullScreen] = useState(false);
   
-  const [schedule, setSchedule] = useState<Exam[]>([
-    { id: 1, subject: '國語', startTime: '08:30', duration: 40, notes: '第一大題為單選題，請注意畫卡。' },
-    { id: 2, subject: '數學', startTime: '10:30', duration: 40, notes: '第5題題目有誤，請看黑板修正哦！' },
-    { id: 3, subject: '英語', startTime: '13:30', duration: 40, notes: '包含聽力測驗，請注意聽廣播 🎧' }
-  ]);
-  const [generalNotes, setGeneralNotes] = useState('1. 🤫 考試期間請保持安靜\n2. ✏️ 桌面清空，只留文具\n3. 👀 寫完請仔細檢查，安靜等待交卷');
+  const [schedule, setSchedule] = useState<Exam[]>(() => {
+    const saved = localStorage.getItem('exam_schedule');
+    return saved ? JSON.parse(saved) : [
+      { id: 1, subject: '國語', startTime: '08:30', duration: 40, notes: '第一大題為單選題，請注意畫卡。' },
+      { id: 2, subject: '數學', startTime: '10:30', duration: 40, notes: '第5題題目有誤，請看黑板修正哦！' },
+      { id: 3, subject: '英語', startTime: '13:30', duration: 40, notes: '包含聽力測驗，請注意聽廣播 🎧' }
+    ];
+  });
+  const [generalNotes, setGeneralNotes] = useState(() => {
+    const saved = localStorage.getItem('exam_general_notes');
+    return saved || '1. 🤫 考試期間請保持安靜\n2. ✏️ 桌面清空，只留文具\n3. 👀 寫完請仔細檢查，安靜等待交卷';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('exam_schedule', JSON.stringify(schedule));
+  }, [schedule]);
+
+  useEffect(() => {
+    localStorage.setItem('exam_general_notes', generalNotes);
+  }, [generalNotes]);
 
   const alertedRef = useRef<Record<number, { ready: boolean; warning: boolean; end: boolean; start: boolean }>>({});
 
@@ -122,6 +137,26 @@ export default function App() {
     }, 1000);
     return () => clearInterval(timer);
   }, [mode, schedule]);
+
+  useEffect(() => {
+    const handleFullScreenChange = () => {
+      setIsFullScreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullScreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullScreenChange);
+  }, []);
+
+  const toggleFullScreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch((err) => {
+        console.error(`Error attempting to enable full-screen mode: ${err.message}`);
+      });
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      }
+    }
+  };
 
   const checkAlerts = (now: Date) => {
     schedule.forEach(exam => {
@@ -174,6 +209,12 @@ export default function App() {
 
   const removeExam = (id: number) => {
     setSchedule(schedule.filter(exam => exam.id !== id));
+  };
+
+  const clearAllExams = () => {
+    if (window.confirm('確定要清空所有考試科目嗎？此動作無法復原。')) {
+      setSchedule([]);
+    }
   };
 
   const testAudio = (type: 'ready' | 'warning') => {
@@ -255,7 +296,14 @@ export default function App() {
               </h1>
               <p className="text-gray-500 mt-2 font-medium">請設定考科時間，系統會自動在考前2分鐘、結束前5分鐘與結束時發出提醒音哦！</p>
             </div>
-            <div className="flex gap-4 relative z-10">
+            <div className="flex gap-4 relative z-10 items-center">
+               <button 
+                onClick={toggleFullScreen}
+                className="p-3 bg-gray-100 text-gray-600 rounded-2xl hover:bg-gray-200 transition-colors shadow-sm"
+                title={isFullScreen ? "退出全螢幕" : "全螢幕模式"}
+              >
+                {isFullScreen ? <Minimize className="w-6 h-6" /> : <Maximize className="w-6 h-6" />}
+              </button>
                <div className="flex flex-col gap-2">
                 <button 
                   onClick={() => testAudio('ready')}
@@ -289,12 +337,20 @@ export default function App() {
                   <Clock className="w-7 h-7" />
                   考試時間表
                 </h2>
-                <button 
-                  onClick={addExam}
-                  className="flex items-center gap-1 text-sm font-bold text-sky-600 hover:text-sky-800 bg-sky-50 px-4 py-2 rounded-xl"
-                >
-                  <Plus className="w-5 h-5" /> 新增考科
-                </button>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={clearAllExams}
+                    className="flex items-center gap-1 text-sm font-bold text-red-500 hover:text-red-700 bg-red-50 px-4 py-2 rounded-xl transition-colors"
+                  >
+                    <Trash2 className="w-5 h-5" /> 清空所有
+                  </button>
+                  <button 
+                    onClick={addExam}
+                    className="flex items-center gap-1 text-sm font-bold text-sky-600 hover:text-sky-800 bg-sky-50 px-4 py-2 rounded-xl transition-colors"
+                  >
+                    <Plus className="w-5 h-5" /> 新增考科
+                  </button>
+                </div>
               </div>
 
               <div className="space-y-5">
@@ -431,7 +487,14 @@ export default function App() {
             {formatTime(currentTime)}
           </div>
         </div>
-        <div>
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={toggleFullScreen}
+            className="p-2.5 bg-white/80 hover:bg-white rounded-full text-gray-600 shadow-sm transition-all"
+            title={isFullScreen ? "退出全螢幕" : "全螢幕模式"}
+          >
+            {isFullScreen ? <Minimize className="w-6 h-6" /> : <Maximize className="w-6 h-6" />}
+          </button>
           <button 
             onClick={() => setMode('setup')}
             className="px-5 py-2.5 bg-white/80 hover:bg-white rounded-full text-sm font-bold text-gray-600 shadow-sm transition-all"
@@ -523,7 +586,7 @@ export default function App() {
               <h2 className="text-5xl md:text-7xl font-black text-green-500 mb-8">
                 🎉 本日考試已全數結束 🎉
               </h2>
-              <p className="text-3xl text-gray-600 font-bold">各位小朋友辛苦了！🥳 趕快收拾書包回家吧！</p>
+              <p className="text-3xl text-gray-600 font-bold">各位小朋友辛苦了！🥳 </p>
             </div>
           )}
 
