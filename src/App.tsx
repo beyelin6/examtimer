@@ -841,12 +841,17 @@ export default function App() {
               </div>
               
               {activeExam.notes && (
-                <div className="mt-12 p-8 rounded-3xl w-full max-w-3xl text-left text-2xl leading-relaxed bg-yellow-100 border-4 border-yellow-300 shadow-md relative transform -rotate-1">
-                  <div className="absolute -top-5 left-1/2 -translate-x-1/2 text-4xl">📌</div>
-                  <div className="flex items-center gap-3 mb-4 text-yellow-800">
-                    <span className="font-black text-3xl">老師小叮嚀</span>
+                <div className="mt-12 w-full max-w-5xl overflow-hidden bg-yellow-100 border-y-4 border-yellow-300 py-4 relative">
+                  <div className="flex whitespace-nowrap animate-marquee">
+                    <span className="text-4xl md:text-5xl font-black text-yellow-800 flex items-center gap-6">
+                      <span className="bg-yellow-400 text-yellow-900 px-4 py-1 rounded-xl text-2xl uppercase">重要叮嚀</span>
+                      {activeExam.notes}
+                      <span className="opacity-30">✦</span>
+                      {activeExam.notes}
+                      <span className="opacity-30">✦</span>
+                      {activeExam.notes}
+                    </span>
                   </div>
-                  <div className="whitespace-pre-wrap font-bold text-gray-700">{activeExam.notes}</div>
                 </div>
               )}
 

@@ -2,6 +2,7 @@
 
 @theme {
   --animate-fade-in: fade-in 0.5s ease-out;
+  --animate-marquee: marquee 20s linear infinite;
 
   @keyframes fade-in {
     from {
@@ -12,5 +13,10 @@
       opacity: 1;
       transform: translateY(0);
     }
+  }
+
+  @keyframes marquee {
+    0% { transform: translateX(100%); }
+    100% { transform: translateX(-100%); }
   }
 }
