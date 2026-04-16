@@ -115,6 +115,10 @@ export default function App() {
     const saved = localStorage.getItem('exam_general_notes');
     return saved || '1. 🤫 考試期間請保持安靜\n2. ✏️ 桌面清空，只留文具\n3. 👀 寫完請仔細檢查，安靜等待交卷';
   });
+  const [breakDuration, setBreakDuration] = useState(() => {
+    const saved = localStorage.getItem('exam_break_duration');
+    return saved ? parseInt(saved) : 10;
+  });
 
   useEffect(() => {
     localStorage.setItem('exam_schedule', JSON.stringify(schedule));
@@ -123,6 +127,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('exam_general_notes', generalNotes);
   }, [generalNotes]);
+
+  useEffect(() => {
+    localStorage.setItem('exam_break_duration', breakDuration.toString());
+  }, [breakDuration]);
 
   const alertedRef = useRef<Record<number, { ready: boolean; warning: boolean; end: boolean; start: boolean }>>({});
 
@@ -205,8 +213,8 @@ export default function App() {
     if (schedule.length > 0) {
       const sorted = [...schedule].sort((a, b) => parseTime(a.startTime).getTime() - parseTime(b.startTime).getTime());
       const lastExam = sorted[sorted.length - 1];
-      // 下一節課開始時間 = 前一節結束時間 + 10 分鐘下課
-      nextStartTime = addMinutesToTimeStr(lastExam.startTime, Number(lastExam.duration) + 10);
+      // 下一節課開始時間 = 前一節結束時間 + 下課時間
+      nextStartTime = addMinutesToTimeStr(lastExam.startTime, Number(lastExam.duration) + breakDuration);
     }
     
     setSchedule([...schedule, { id: newId, subject: '國語', startTime: nextStartTime, duration: 40, notes: '' }]);
@@ -385,7 +393,21 @@ export default function App() {
                   <Clock className="w-7 h-7" />
                   考試時間表
                 </h2>
-                <div className="flex gap-2 flex-wrap justify-end">
+                <div className="flex gap-2 flex-wrap justify-end items-center">
+                  <div className="flex items-center gap-2 bg-sky-50 px-3 py-2 rounded-xl border border-sky-100">
+                    <span className="text-xs font-bold text-sky-700">下課時間:</span>
+                    <select 
+                      value={breakDuration}
+                      onChange={(e) => setBreakDuration(parseInt(e.target.value))}
+                      className="text-xs font-bold text-sky-800 bg-transparent outline-none cursor-pointer"
+                    >
+                      <option value={5}>5 分鐘</option>
+                      <option value={10}>10 分鐘</option>
+                      <option value={15}>15 分鐘</option>
+                      <option value={20}>20 分鐘</option>
+                      <option value={30}>30 分鐘</option>
+                    </select>
+                  </div>
                   <input 
                     type="file" 
                     id="import-schedule" 
