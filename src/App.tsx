@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Clock, Plus, Trash2, Volume2, AlertCircle, Play, Settings, Edit3, CheckCircle2, Maximize, Minimize } from 'lucide-react';
+import { Clock, Plus, Trash2, Volume2, AlertCircle, Play, Settings, Edit3, CheckCircle2, Maximize, Minimize, Download, Upload } from 'lucide-react';
 
 // --- 音效產生器 (Web Audio API) ---
 const playTone = (frequency: number, type: OscillatorType, duration: number, vol = 0.5) => {
@@ -106,7 +106,7 @@ export default function App() {
   const [schedule, setSchedule] = useState<Exam[]>(() => {
     const saved = localStorage.getItem('exam_schedule');
     return saved ? JSON.parse(saved) : [
-      { id: 1, subject: '國語', startTime: '08:30', duration: 40, notes: '第一大題為單選題，請注意畫卡。' },
+      { id: 1, subject: '國語', startTime: '08:45', duration: 40, notes: '第一大題為單選題，請注意畫卡。' },
       { id: 2, subject: '數學', startTime: '10:30', duration: 40, notes: '第5題題目有誤，請看黑板修正哦！' },
       { id: 3, subject: '英語', startTime: '13:30', duration: 40, notes: '包含聽力測驗，請注意聽廣播 🎧' }
     ];
@@ -200,7 +200,16 @@ export default function App() {
 
   const addExam = () => {
     const newId = schedule.length > 0 ? Math.max(...schedule.map(e => e.id)) + 1 : 1;
-    setSchedule([...schedule, { id: newId, subject: '國語', startTime: '08:00', duration: 40, notes: '' }]);
+    let nextStartTime = '08:45';
+    
+    if (schedule.length > 0) {
+      const sorted = [...schedule].sort((a, b) => parseTime(a.startTime).getTime() - parseTime(b.startTime).getTime());
+      const lastExam = sorted[sorted.length - 1];
+      // 下一節課開始時間 = 前一節結束時間 + 10 分鐘下課
+      nextStartTime = addMinutesToTimeStr(lastExam.startTime, Number(lastExam.duration) + 10);
+    }
+    
+    setSchedule([...schedule, { id: newId, subject: '國語', startTime: nextStartTime, duration: 40, notes: '' }]);
   };
 
   const updateExam = (id: number, field: keyof Exam, value: string | number) => {
@@ -215,6 +224,45 @@ export default function App() {
     if (window.confirm('確定要清空所有考試科目嗎？此動作無法復原。')) {
       setSchedule([]);
     }
+  };
+
+  const exportSchedule = () => {
+    const dataStr = JSON.stringify(schedule, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `考試排程_${new Date().toLocaleDateString()}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const importSchedule = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const content = e.target?.result as string;
+        const importedData = JSON.parse(content);
+        
+        if (Array.isArray(importedData)) {
+          if (window.confirm('匯入將會覆蓋目前的排程，確定要繼續嗎？')) {
+            setSchedule(importedData);
+          }
+        } else {
+          alert('無效的檔案格式！');
+        }
+      } catch (err) {
+        alert('解析檔案時發生錯誤！');
+      }
+      // Reset input value to allow importing the same file again
+      event.target.value = '';
+    };
+    reader.readAsText(file);
   };
 
   const testAudio = (type: 'ready' | 'warning') => {
@@ -337,16 +385,37 @@ export default function App() {
                   <Clock className="w-7 h-7" />
                   考試時間表
                 </h2>
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap justify-end">
+                  <input 
+                    type="file" 
+                    id="import-schedule" 
+                    className="hidden" 
+                    accept=".json" 
+                    onChange={importSchedule} 
+                  />
+                  <button 
+                    onClick={() => document.getElementById('import-schedule')?.click()}
+                    className="flex items-center gap-1 text-sm font-bold text-sky-600 hover:text-sky-800 bg-sky-50 px-3 py-2 rounded-xl transition-colors"
+                    title="匯入排程"
+                  >
+                    <Upload className="w-5 h-5" /> 匯入
+                  </button>
+                  <button 
+                    onClick={exportSchedule}
+                    className="flex items-center gap-1 text-sm font-bold text-sky-600 hover:text-sky-800 bg-sky-50 px-3 py-2 rounded-xl transition-colors"
+                    title="匯出排程"
+                  >
+                    <Download className="w-5 h-5" /> 匯出
+                  </button>
                   <button 
                     onClick={clearAllExams}
-                    className="flex items-center gap-1 text-sm font-bold text-red-500 hover:text-red-700 bg-red-50 px-4 py-2 rounded-xl transition-colors"
+                    className="flex items-center gap-1 text-sm font-bold text-red-500 hover:text-red-700 bg-red-50 px-3 py-2 rounded-xl transition-colors"
                   >
-                    <Trash2 className="w-5 h-5" /> 清空所有
+                    <Trash2 className="w-5 h-5" /> 清空
                   </button>
                   <button 
                     onClick={addExam}
-                    className="flex items-center gap-1 text-sm font-bold text-sky-600 hover:text-sky-800 bg-sky-50 px-4 py-2 rounded-xl transition-colors"
+                    className="flex items-center gap-1 text-sm font-bold text-white bg-sky-500 hover:bg-sky-600 px-4 py-2 rounded-xl transition-colors shadow-sm"
                   >
                     <Plus className="w-5 h-5" /> 新增考科
                   </button>
