@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Clock, Plus, Trash2, Volume2, AlertCircle, Play, Settings, Edit3, CheckCircle2, Maximize, Minimize, Download, Upload } from 'lucide-react';
+import { Clock, Plus, Trash2, Volume2, AlertCircle, Play, Settings, Edit3, CheckCircle2, Maximize, Minimize, Download, Upload, History, RotateCcw } from 'lucide-react';
 
 // --- 音效產生器 (Web Audio API) ---
 const playTone = (frequency: number, type: OscillatorType, duration: number, vol = 0.5) => {
@@ -99,6 +99,13 @@ interface Exam {
   notes: string;
 }
 
+interface HistoryRecord {
+  id: string;
+  date: string;
+  schedule: Exam[];
+  generalNotes: string;
+}
+
 export default function App() {
   const [mode, setMode] = useState<'setup' | 'exam'>('setup'); 
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -116,6 +123,10 @@ export default function App() {
     const saved = localStorage.getItem('exam_general_notes');
     return saved || '1. 🤫 考試期間請保持安靜\n2. ✏️ 桌面清空，只留文具\n3. 👀 寫完請仔細檢查，安靜等待交卷';
   });
+  const [history, setHistory] = useState<HistoryRecord[]>(() => {
+    const saved = localStorage.getItem('exam_history');
+    return saved ? JSON.parse(saved) : [];
+  });
 
   useEffect(() => {
     localStorage.setItem('exam_schedule', JSON.stringify(schedule));
@@ -124,6 +135,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('exam_general_notes', generalNotes);
   }, [generalNotes]);
+
+  useEffect(() => {
+    localStorage.setItem('exam_history', JSON.stringify(history));
+  }, [history]);
 
   const alertedRef = useRef<Record<number, { ready: boolean; warning: boolean; end: boolean; start: boolean }>>({});
 
@@ -236,6 +251,34 @@ export default function App() {
 
   const removeExam = (id: number) => {
     setSchedule(schedule.filter(exam => exam.id !== id));
+  };
+
+  const saveToHistory = () => {
+    if (schedule.length === 0) {
+      alert('目前沒有排程可以紀錄哦！');
+      return;
+    }
+    const newRecord: HistoryRecord = {
+      id: Date.now().toString(),
+      date: new Date().toLocaleString(),
+      schedule: [...schedule],
+      generalNotes: generalNotes
+    };
+    setHistory([newRecord, ...history].slice(0, 20)); // Keep last 20 records
+    alert('已成功紀錄目前的排程！');
+  };
+
+  const restoreFromHistory = (record: HistoryRecord) => {
+    if (window.confirm(`確定要還原 ${record.date} 的排程嗎？這會覆蓋目前的設定。`)) {
+      setSchedule(record.schedule);
+      setGeneralNotes(record.generalNotes);
+    }
+  };
+
+  const deleteHistoryRecord = (id: string) => {
+    if (window.confirm('確定要刪除這筆紀錄嗎？')) {
+      setHistory(history.filter(r => r.id !== id));
+    }
   };
 
   const clearAllExams = () => {
@@ -405,6 +448,13 @@ export default function App() {
                 </h2>
                 <div className="flex gap-2 flex-wrap justify-end items-center">
                   <button 
+                    onClick={saveToHistory}
+                    className="flex items-center gap-1 text-sm font-bold text-emerald-600 hover:text-emerald-800 bg-emerald-50 px-3 py-2 rounded-xl transition-colors"
+                    title="將目前的排程紀錄到歷史清單"
+                  >
+                    <History className="w-5 h-5" /> 紀錄
+                  </button>
+                  <button 
                     onClick={autoAlignSchedule}
                     className="flex items-center gap-1 text-sm font-bold text-amber-600 hover:text-amber-800 bg-amber-50 px-3 py-2 rounded-xl transition-colors"
                     title="根據下課時間自動對齊所有考試時間"
@@ -552,6 +602,47 @@ export default function App() {
                   <li className="flex items-start gap-2"><span className="text-red-700 font-bold">結束</span> 結束時全紅屏閃爍「時間結束請停筆」</li>
                 </ul>
               </div>
+
+              {history.length > 0 && (
+                <div className="bg-white p-6 rounded-[2rem] shadow-sm border-2 border-emerald-100">
+                  <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-xl font-black flex items-center gap-2 text-emerald-600">
+                      <History className="w-6 h-6" />
+                      歷史紀錄 (最近20筆)
+                    </h2>
+                    <button 
+                      onClick={() => { if(window.confirm('確定要清空所有歷史紀錄嗎？')) setHistory([]); }}
+                      className="text-xs font-bold text-red-400 hover:text-red-600 transition-colors"
+                    >
+                      清空全部
+                    </button>
+                  </div>
+                  <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
+                    {history.map(record => (
+                      <div key={record.id} className="p-4 bg-emerald-50/50 rounded-2xl border border-emerald-100 group">
+                        <div className="flex justify-between items-start mb-2">
+                          <span className="text-xs font-bold text-emerald-700">{record.date}</span>
+                          <button 
+                            onClick={() => deleteHistoryRecord(record.id)}
+                            className="text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                        <div className="text-sm font-bold text-gray-700 mb-3">
+                          {record.schedule.length} 個考科: {record.schedule.map(e => e.subject).join(', ')}
+                        </div>
+                        <button 
+                          onClick={() => restoreFromHistory(record)}
+                          className="w-full flex items-center justify-center gap-1 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold transition-colors shadow-sm"
+                        >
+                          <RotateCcw className="w-3 h-3" /> 還原此排程
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -686,11 +777,18 @@ export default function App() {
           )}
 
           {examStatus === 'finished' && (
-            <div className="text-center bg-white p-16 rounded-[3rem] shadow-xl border-8 border-green-100">
+            <div className="text-center bg-white p-16 rounded-[3rem] shadow-xl border-8 border-green-100 flex flex-col items-center">
               <h2 className="text-5xl md:text-7xl font-black text-green-500 mb-8">
                 🎉 本日考試已全數結束 🎉
               </h2>
-              <p className="text-3xl text-gray-600 font-bold">各位小朋友辛苦了！🥳 </p>
+              <p className="text-3xl text-gray-600 font-bold mb-10">各位小朋友辛苦了！🥳 </p>
+              <button 
+                onClick={saveToHistory}
+                className="flex items-center gap-2 px-8 py-4 bg-emerald-500 text-white rounded-2xl hover:bg-emerald-600 transition-all font-black shadow-lg shadow-emerald-200 text-xl transform hover:scale-105"
+              >
+                <History className="w-8 h-8" />
+                將今日排程存入歷史紀錄
+              </button>
             </div>
           )}
 
