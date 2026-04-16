@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Clock, Plus, Trash2, Volume2, AlertCircle, Play, Settings, Edit3, CheckCircle2, Maximize, Minimize, Download, Upload, History, RotateCcw } from 'lucide-react';
 
 // --- 音效產生器 (Web Audio API) ---
@@ -105,6 +106,45 @@ interface HistoryRecord {
   schedule: Exam[];
   generalNotes: string;
 }
+
+// --- 跑馬燈組件 ---
+const NoteMarquee = ({ notes }: { notes: string }) => {
+  const lines = notes.split('\n').filter(l => l.trim() !== '');
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  useEffect(() => {
+    // 當 notes 改變時，重置索引
+    setCurrentIndex(0);
+  }, [notes]);
+
+  if (lines.length === 0) return null;
+
+  return (
+    <div className="mt-12 w-full max-w-5xl overflow-hidden bg-yellow-100 border-y-4 border-yellow-300 py-6 relative h-24 md:h-28 flex items-center">
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={`${currentIndex}-${lines[currentIndex]}`}
+          initial={{ x: "100%" }}
+          animate={{ x: "-100%" }}
+          exit={{ opacity: 0 }}
+          transition={{ 
+            duration: Math.max(8, lines[currentIndex].length * 0.4), 
+            ease: "linear" 
+          }}
+          onAnimationComplete={() => {
+            setCurrentIndex((prev) => (prev + 1) % lines.length);
+          }}
+          className="flex whitespace-nowrap absolute will-change-transform"
+        >
+          <span className="text-4xl md:text-6xl font-black text-yellow-800 flex items-center gap-6">
+            <span className="bg-yellow-400 text-yellow-900 px-4 py-1 rounded-xl text-2xl uppercase">重要叮嚀</span>
+            {lines[currentIndex]}
+          </span>
+        </motion.div>
+      </AnimatePresence>
+    </div>
+  );
+};
 
 export default function App() {
   const [mode, setMode] = useState<'setup' | 'exam'>('setup'); 
@@ -840,20 +880,7 @@ export default function App() {
                 </div>
               </div>
               
-              {activeExam.notes && (
-                <div className="mt-12 w-full max-w-5xl overflow-hidden bg-yellow-100 border-y-4 border-yellow-300 py-4 relative">
-                  <div className="flex whitespace-nowrap animate-marquee">
-                    <span className="text-4xl md:text-5xl font-black text-yellow-800 flex items-center gap-6">
-                      <span className="bg-yellow-400 text-yellow-900 px-4 py-1 rounded-xl text-2xl uppercase">重要叮嚀</span>
-                      {activeExam.notes}
-                      <span className="opacity-30">✦</span>
-                      {activeExam.notes}
-                      <span className="opacity-30">✦</span>
-                      {activeExam.notes}
-                    </span>
-                  </div>
-                </div>
-              )}
+              <NoteMarquee notes={activeExam.notes} />
 
               <div className="mt-12 flex items-center gap-4 opacity-20 hover:opacity-100 transition-opacity bg-white/50 px-6 py-3 rounded-full">
                 <span className="text-gray-500 font-bold">老師專用(延長時間)：</span>
