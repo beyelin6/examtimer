@@ -132,7 +132,10 @@ const NoteMarquee = ({ notes }: { notes: string }) => {
             ease: "linear" 
           }}
           onAnimationComplete={() => {
-            setCurrentIndex((prev) => (prev + 1) % lines.length);
+            // 延遲 1.5 秒再切換到下一行，讓使用者有視覺緩衝
+            setTimeout(() => {
+              setCurrentIndex((prev) => (prev + 1) % lines.length);
+            }, 1500);
           }}
           className="flex whitespace-nowrap absolute will-change-transform"
         >
