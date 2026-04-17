@@ -111,39 +111,49 @@ interface HistoryRecord {
 const NoteMarquee = ({ notes }: { notes: string }) => {
   const lines = notes.split('\n').filter(l => l.trim() !== '');
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [isShowing, setIsShowing] = useState(true);
 
+  // 當 notes 改變時，重置
   useEffect(() => {
-    // 當 notes 改變時，重置索引
     setCurrentIndex(0);
+    setIsShowing(true);
   }, [notes]);
+
+  // 處理循環與暫停
+  useEffect(() => {
+    if (!isShowing && lines.length > 0) {
+      const timer = setTimeout(() => {
+        setCurrentIndex((prev) => (prev + 1) % lines.length);
+        setIsShowing(true);
+      }, 2000); // 每行跑完後暫停 2 秒
+      return () => clearTimeout(timer);
+    }
+  }, [isShowing, lines.length]);
 
   if (lines.length === 0) return null;
 
   return (
-    <div className="mt-12 w-full max-w-5xl overflow-hidden bg-yellow-100 border-y-4 border-yellow-300 py-6 relative h-24 md:h-28 flex items-center">
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={`${currentIndex}-${lines[currentIndex]}`}
-          initial={{ x: "100%" }}
-          animate={{ x: "-100%" }}
-          exit={{ opacity: 0 }}
-          transition={{ 
-            duration: Math.max(8, lines[currentIndex].length * 0.4), 
-            ease: "linear" 
-          }}
-          onAnimationComplete={() => {
-            // 延遲 1.5 秒再切換到下一行，讓使用者有視覺緩衝
-            setTimeout(() => {
-              setCurrentIndex((prev) => (prev + 1) % lines.length);
-            }, 1500);
-          }}
-          className="flex whitespace-nowrap absolute will-change-transform"
-        >
-          <span className="text-4xl md:text-6xl font-black text-yellow-800 flex items-center gap-6">
-            <span className="bg-yellow-400 text-yellow-900 px-4 py-1 rounded-xl text-2xl uppercase">重要叮嚀</span>
-            {lines[currentIndex]}
-          </span>
-        </motion.div>
+    <div className="mt-12 w-full max-w-5xl overflow-hidden bg-yellow-100 border-y-4 border-yellow-300 py-6 relative h-24 md:h-32 flex items-center shadow-inner">
+      <AnimatePresence>
+        {isShowing && (
+          <motion.div
+            key={`${currentIndex}-${lines[currentIndex]}`}
+            initial={{ x: "100vw" }} // 永遠從螢幕最右側開始
+            animate={{ x: "-100%" }} // 跑到完全消失在左側（相對於自己寬度）
+            exit={{ opacity: 0, transition: { duration: 0.5 } }}
+            transition={{ 
+              duration: Math.max(20, lines[currentIndex].length * 1.5), 
+              ease: "linear" 
+            }}
+            onAnimationComplete={() => setIsShowing(false)}
+            className="flex whitespace-nowrap absolute will-change-transform"
+          >
+            <span className="text-4xl md:text-6xl font-black text-yellow-800 flex items-center gap-6">
+              <span className="bg-yellow-400 text-yellow-900 px-4 py-1 rounded-xl text-3xl uppercase shadow-sm">重要叮嚀</span>
+              {lines[currentIndex]}
+            </span>
+          </motion.div>
+        )}
       </AnimatePresence>
     </div>
   );
