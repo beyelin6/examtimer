@@ -172,6 +172,13 @@ export default function App() {
       return [];
     }
   });
+  const [examZhuyin, setExamZhuyin] = useState<boolean>(() => {
+    return localStorage.getItem('exam_zhuyin_mode') === 'true';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('exam_zhuyin_mode', String(examZhuyin));
+  }, [examZhuyin]);
 
   useEffect(() => {
     soundSettingsRef.current = soundSettings;
@@ -480,13 +487,25 @@ export default function App() {
               </h1>
               <p className="text-gray-500 mt-2 font-medium">請設定考科時間，系統會自動在考前2分鐘、結束前5分鐘與結束時發出提醒音哦！</p>
             </div>
-            <div className="flex gap-4 relative z-10 items-center">
+            <div className="flex flex-wrap gap-3 relative z-10 items-center justify-end">
                <button 
                 onClick={toggleFullScreen}
                 className="p-3 bg-gray-100 text-gray-600 rounded-2xl hover:bg-gray-200 transition-colors shadow-sm"
                 title={isFullScreen ? "退出全螢幕" : "全螢幕模式"}
               >
                 {isFullScreen ? <Minimize className="w-6 h-6" /> : <Maximize className="w-6 h-6" />}
+              </button>
+              <button
+                onClick={() => setExamZhuyin((prev) => !prev)}
+                className={`flex items-center gap-2 px-4 py-3 rounded-2xl transition-colors font-bold text-sm shadow-sm border-2 ${
+                  examZhuyin
+                    ? 'bg-violet-50 text-violet-700 border-violet-200 hover:bg-violet-100'
+                    : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                }`}
+                title="切換考試畫面顯示純國字或國字加注音"
+              >
+                <span className="text-base leading-none">{examZhuyin ? 'ㄅ' : '字'}</span>
+                <span>考試畫面：{examZhuyin ? '國字＋注音' : '純國字'}</span>
               </button>
               <button
                 onClick={() => {
@@ -828,6 +847,30 @@ export default function App() {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          <div className="flex items-center bg-white/80 rounded-full p-1 shadow-sm border border-white">
+            <button
+              onClick={() => setExamZhuyin(false)}
+              className={`px-3 py-1.5 rounded-full text-sm font-bold transition-all ${
+                !examZhuyin
+                  ? 'bg-sky-500 text-white shadow-xs'
+                  : 'text-gray-600 hover:text-gray-800'
+              }`}
+              title="顯示純國字"
+            >
+              國字
+            </button>
+            <button
+              onClick={() => setExamZhuyin(true)}
+              className={`px-3 py-1.5 rounded-full text-sm font-bold transition-all ${
+                examZhuyin
+                  ? 'bg-violet-500 text-white shadow-xs'
+                  : 'text-gray-600 hover:text-gray-800'
+              }`}
+              title="顯示國字加注音"
+            >
+              國字＋注音
+            </button>
+          </div>
           <button
             onClick={() => {
               const nextMuted = !soundSettings.isMuted;
@@ -863,7 +906,7 @@ export default function App() {
         </div>
       </div>
 
-      <div className="flex-1 flex overflow-hidden">
+      <div className={`flex-1 flex overflow-hidden ${examZhuyin ? 'exam-zhuyin' : ''}`}>
         
         <div className="flex-1 flex flex-col justify-center items-center p-8 lg:p-12 relative overflow-y-auto">
           
@@ -883,7 +926,7 @@ export default function App() {
                     {getDisplaySubject(nextExam.subject)}
                   </p>
                   <div className="inline-block bg-gray-100 px-8 py-3 rounded-2xl">
-                    <p className="text-4xl text-gray-600 font-black tracking-wider">
+                    <p className="font-timer-num text-4xl text-gray-600 font-black tracking-wider">
                       {nextExam.startTime} - {nextExamEndStr}
                     </p>
                   </div>
@@ -911,7 +954,7 @@ export default function App() {
                 
                 <div className="bg-orange-50 rounded-[2rem] p-8 border-4 border-orange-200">
                   <p className="text-2xl text-orange-800 font-bold mb-4">距離開始還有</p>
-                  <div className="font-black text-orange-600 tracking-tighter" style={{ fontSize: 'clamp(5rem, 12vw, 8rem)', fontVariantNumeric: 'tabular-nums' }}>
+                  <div className="font-timer-num font-black text-orange-600 tracking-tighter" style={{ fontSize: 'clamp(5rem, 12vw, 8rem)', fontVariantNumeric: 'tabular-nums' }}>
                     {formatShortCountdown(parseTime(nextExam.startTime).getTime() - currentTime.getTime())}
                   </div>
                 </div>
@@ -966,7 +1009,7 @@ export default function App() {
                     {getDisplaySubject(activeExam.subject)}
                   </h2>
                 </div>
-                <div className={`px-8 py-2 rounded-full font-black text-2xl tracking-widest ${
+                <div className={`font-timer-num px-8 py-2 rounded-full font-black text-2xl tracking-widest ${
                   isCritical ? 'bg-white text-red-600' : 'bg-white/60 text-gray-600'
                 }`}>
                   {activeExam.startTime} - {activeExamEndStr}
@@ -993,7 +1036,7 @@ export default function App() {
                   </div>
                 )}
 
-                <div className={`font-black leading-none tracking-tighter ${
+                <div className={`font-timer-num font-black leading-none tracking-tighter ${
                     isCritical 
                       ? 'text-red-600' 
                       : isWarning 

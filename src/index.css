@@ -14,3 +14,24 @@
     }
   }
 }
+
+.exam-zhuyin {
+  font-family: 'Bpmf Iansui', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  letter-spacing: 0.04em;
+}
+
+.exam-zhuyin h1,
+.exam-zhuyin h2,
+.exam-zhuyin h3,
+.exam-zhuyin p,
+.exam-zhuyin span,
+.exam-zhuyin div {
+  font-weight: 400;
+}
+
+.exam-zhuyin .font-timer-num {
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+
