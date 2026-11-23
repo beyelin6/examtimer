@@ -13,6 +13,7 @@ import {
   unlockAudioContext,
 } from './utils/soundEngine';
 import { SoundSettingsModal } from './components/SoundSettingsModal';
+import { SubjectCombobox } from './components/SubjectCombobox';
 
 // --- 輔助函數 ---
 const parseTime = (timeStr: string) => {
@@ -51,15 +52,24 @@ const addMinutesToTimeStr = (timeStr: string, minutesToAdd: number) => {
 };
 
 const getSubjectEmoji = (subject: string) => {
+  if (subject.includes('作文') || subject.includes('寫作')) return '✍️';
   if (subject.includes('國語') || subject.includes('國文')) return '📖';
   if (subject.includes('數學')) return '📏';
+  if (subject.includes('聽力') || subject.includes('英聽')) return '🎧';
   if (subject.includes('英語') || subject.includes('英文')) return '🔤';
+  if (subject.includes('理化') || subject.includes('物理') || subject.includes('化學') || subject.includes('生物')) return '🔬';
   if (subject.includes('自然')) return '🌱';
-  if (subject.includes('社會')) return '🌍';
-  if (subject.includes('健康') || subject.includes('體育')) return '⚽';
-  if (subject.includes('綜合')) return '🎨';
+  if (subject.includes('社會') || subject.includes('歷史') || subject.includes('地理') || subject.includes('公民')) return '🌍';
+  if (subject.includes('本土') || subject.includes('台語') || subject.includes('閩南') || subject.includes('客語') || subject.includes('原民')) return '🗣️';
+  if (subject.includes('生活')) return '🌻';
+  if (subject.includes('資訊') || subject.includes('電腦') || subject.includes('程式')) return '💻';
+  if (subject.includes('音樂')) return '🎵';
+  if (subject.includes('美術') || subject.includes('藝文') || subject.includes('綜合')) return '🎨';
+  if (subject.includes('健康') || subject.includes('體育') || subject.includes('健體')) return '⚽';
   return '📝';
 };
+
+const getDisplaySubject = (subject: string) => subject.trim() || '未命名科目';
 
 interface Exam {
   id: number;
@@ -154,11 +164,33 @@ export default function App() {
   const [isSoundModalOpen, setIsSoundModalOpen] = useState(false);
   const [previewingStage, setPreviewingStage] = useState<SoundEventType | null>(null);
   const soundSettingsRef = useRef<SoundSettings>(soundSettings);
+  const [customSubjects, setCustomSubjects] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('exam_custom_subjects');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
 
   useEffect(() => {
     soundSettingsRef.current = soundSettings;
     saveSoundSettings(soundSettings);
   }, [soundSettings]);
+
+  useEffect(() => {
+    localStorage.setItem('exam_custom_subjects', JSON.stringify(customSubjects));
+  }, [customSubjects]);
+
+  const addCustomSubject = (subject: string) => {
+    const clean = subject.trim();
+    if (!clean) return;
+    setCustomSubjects((prev) => (prev.includes(clean) ? prev : [...prev, clean]));
+  };
+
+  const removeCustomSubject = (subject: string) => {
+    setCustomSubjects((prev) => prev.filter((item) => item !== subject));
+  };
 
   useEffect(() => {
     localStorage.setItem('exam_schedule', JSON.stringify(schedule));
@@ -544,19 +576,15 @@ export default function App() {
                   <div key={exam.id} className="bg-white p-6 rounded-[2rem] shadow-sm border-2 border-sky-100 flex flex-col gap-4 relative">
                     <div className="absolute top-6 left-4 text-2xl opacity-50">{getSubjectEmoji(exam.subject)}</div>
                     <div className="flex flex-wrap md:flex-nowrap gap-4 items-start pl-10">
-                      <div className="flex-1 space-y-1">
-                        <label className="text-sm font-bold text-gray-500">科目名稱</label>
-                        <select 
+                      <div className="flex-1 min-w-[160px] space-y-1">
+                        <label className="text-sm font-bold text-gray-500">科目名稱 (可自訂)</label>
+                        <SubjectCombobox
                           value={exam.subject}
-                          onChange={(e) => updateExam(exam.id, 'subject', e.target.value)}
-                          className="w-full p-3 border-2 border-gray-200 rounded-xl focus:ring-4 focus:ring-sky-100 focus:border-sky-400 outline-none transition-all font-bold text-lg text-gray-700 bg-white"
-                        >
-                          <option value="國語">國語</option>
-                          <option value="數學">數學</option>
-                          <option value="英語">英語</option>
-                          <option value="自然">自然</option>
-                          <option value="社會">社會</option>
-                        </select>
+                          onChange={(val) => updateExam(exam.id, 'subject', val)}
+                          customPresets={customSubjects}
+                          onAddCustomPreset={addCustomSubject}
+                          onRemoveCustomPreset={removeCustomSubject}
+                        />
                       </div>
                       <div className="w-36 space-y-1">
                         <label className="text-sm font-bold text-gray-500">開始時間</label>
@@ -852,7 +880,7 @@ export default function App() {
                   <p className="text-2xl text-gray-400 mb-4 font-bold">下一節要考什麼呢？</p>
                   <p className="text-7xl font-black text-sky-600 mb-6 flex items-center justify-center gap-4">
                     <span>{getSubjectEmoji(nextExam.subject)}</span>
-                    {nextExam.subject}
+                    {getDisplaySubject(nextExam.subject)}
                   </p>
                   <div className="inline-block bg-gray-100 px-8 py-3 rounded-2xl">
                     <p className="text-4xl text-gray-600 font-black tracking-wider">
@@ -878,7 +906,7 @@ export default function App() {
                 <p className="text-3xl text-orange-600 mb-4 font-black mt-6">準備考：</p>
                 <p className="text-7xl font-black text-gray-800 mb-8 flex items-center justify-center gap-4">
                   <span>{getSubjectEmoji(nextExam.subject)}</span>
-                  {nextExam.subject}
+                  {getDisplaySubject(nextExam.subject)}
                 </p>
                 
                 <div className="bg-orange-50 rounded-[2rem] p-8 border-4 border-orange-200">
@@ -935,7 +963,7 @@ export default function App() {
                 <div className="bg-white/90 px-10 py-4 rounded-full shadow-md mb-6 flex items-center gap-4 border-4 border-white">
                   <span className="text-5xl">{getSubjectEmoji(activeExam.subject)}</span>
                   <h2 className="text-5xl md:text-6xl font-black text-gray-800 tracking-wider">
-                    {activeExam.subject}
+                    {getDisplaySubject(activeExam.subject)}
                   </h2>
                 </div>
                 <div className={`px-8 py-2 rounded-full font-black text-2xl tracking-widest ${
@@ -1058,7 +1086,7 @@ export default function App() {
                     {icon}
                     <div>
                       <div className={`text-lg font-black ${currentTime >= end && !isJustEndedThis ? 'line-through opacity-70' : ''}`}>
-                        {exam.subject}
+                        {getDisplaySubject(exam.subject)}
                       </div>
                       <div className="font-bold text-sm opacity-80" style={{ fontVariantNumeric: 'tabular-nums' }}>
                         {exam.startTime} - {endStr} ({exam.duration}分)
