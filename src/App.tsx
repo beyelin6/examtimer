@@ -1,48 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Clock, Plus, Trash2, Volume2, AlertCircle, Play, Settings, Edit3, CheckCircle2, Maximize, Minimize, Download, Upload, History, RotateCcw } from 'lucide-react';
-
-// --- 音效產生器 (Web Audio API) ---
-const playTone = (frequency: number, type: OscillatorType, duration: number, vol = 0.5) => {
-  const AudioContextClass = (window.AudioContext || (window as any).webkitAudioContext);
-  if (!AudioContextClass) return;
-  
-  const audioCtx = new AudioContextClass();
-  const oscillator = audioCtx.createOscillator();
-  const gainNode = audioCtx.createGain();
-  
-  oscillator.type = type;
-  oscillator.frequency.setValueAtTime(frequency, audioCtx.currentTime);
-  
-  gainNode.gain.setValueAtTime(vol, audioCtx.currentTime);
-  gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
-  
-  oscillator.connect(gainNode);
-  gainNode.connect(audioCtx.destination);
-  
-  oscillator.start();
-  oscillator.stop(audioCtx.currentTime + duration);
-};
-
-const playReadySound = () => {
-  // 考前2分鐘預備音：輕快的三連音
-  setTimeout(() => playTone(659, 'sine', 0.2), 0);     // Mi
-  setTimeout(() => playTone(784, 'sine', 0.2), 300);   // Sol
-  setTimeout(() => playTone(1046, 'sine', 0.4), 600);  // Do
-};
-
-const playWarningSound = () => {
-  // 剩餘5分鐘警告音：短促的叮咚聲
-  setTimeout(() => playTone(880, 'sine', 0.5), 0);
-  setTimeout(() => playTone(880, 'sine', 0.5), 600);
-  setTimeout(() => playTone(1046, 'sine', 0.8), 1200);
-};
-
-const playEndSound = () => {
-  // 結束音：長聲鈴響
-  playTone(600, 'square', 2.0, 0.2);
-  setTimeout(() => playTone(600, 'square', 2.0, 0.2), 2200);
-};
+import { Clock, Plus, Trash2, Volume2, VolumeX, Bell, AlertCircle, Play, Square, Settings, Edit3, CheckCircle2, Maximize, Minimize, Download, Upload, History, RotateCcw } from 'lucide-react';
+import {
+  STAGE_METADATA,
+  SoundEventType,
+  SoundSettings,
+  getSoundDisplayName,
+  loadSoundSettings,
+  playExamSound,
+  saveSoundSettings,
+  stopCurrentSound,
+  unlockAudioContext,
+} from './utils/soundEngine';
+import { SoundSettingsModal } from './components/SoundSettingsModal';
 
 // --- 輔助函數 ---
 const parseTime = (timeStr: string) => {
@@ -180,6 +150,15 @@ export default function App() {
     const saved = localStorage.getItem('exam_history');
     return saved ? JSON.parse(saved) : [];
   });
+  const [soundSettings, setSoundSettings] = useState<SoundSettings>(() => loadSoundSettings());
+  const [isSoundModalOpen, setIsSoundModalOpen] = useState(false);
+  const [previewingStage, setPreviewingStage] = useState<SoundEventType | null>(null);
+  const soundSettingsRef = useRef<SoundSettings>(soundSettings);
+
+  useEffect(() => {
+    soundSettingsRef.current = soundSettings;
+    saveSoundSettings(soundSettings);
+  }, [soundSettings]);
 
   useEffect(() => {
     localStorage.setItem('exam_schedule', JSON.stringify(schedule));
@@ -243,25 +222,25 @@ export default function App() {
 
       // 考前 2 分鐘 (120,000 毫秒) 預備音
       if (timeToStart <= 120000 && timeToStart > 0 && !status.ready) {
-        playReadySound();
+        void playExamSound('ready', soundSettingsRef.current);
         status.ready = true;
       }
 
-      // 考試開始輕聲提示
+      // 考試開始提示音
       if (now >= start && now < end && !status.start) {
-        playTone(1200, 'sine', 0.5);
+        void playExamSound('start', soundSettingsRef.current);
         status.start = true;
       }
 
       // 考試結束前 5 分鐘 (300,000 毫秒) 警告音
       if (now >= start && timeLeft <= 300000 && timeLeft > 0 && !status.warning) {
-        playWarningSound();
+        void playExamSound('warning', soundSettingsRef.current);
         status.warning = true;
       }
 
       // 考試結束提醒
       if (now >= start && timeLeft <= 0 && !status.end && timeLeft > -5000) {
-        playEndSound();
+        void playExamSound('end', soundSettingsRef.current);
         status.end = true;
       }
     });
@@ -379,14 +358,25 @@ export default function App() {
     reader.readAsText(file);
   };
 
-  const testAudio = (type: 'ready' | 'warning') => {
-    if (type === 'ready') playReadySound();
-    if (type === 'warning') playWarningSound();
+  const testAudio = (type: SoundEventType) => {
+    if (previewingStage === type) {
+      stopCurrentSound();
+      setPreviewingStage(null);
+      return;
+    }
+    if (soundSettings.stages[type].soundId === 'mute') return;
+    setPreviewingStage(type);
+    void playExamSound(type, soundSettings, {
+      ignoreMute: true,
+      onEnded: () => setPreviewingStage((curr) => (curr === type ? null : curr)),
+    });
   };
 
   const startExamMode = () => {
+    stopCurrentSound();
+    setPreviewingStage(null);
     alertedRef.current = {};
-    playTone(440, 'sine', 0.01, 0);
+    unlockAudioContext();
     setMode('exam');
   };
 
@@ -466,25 +456,24 @@ export default function App() {
               >
                 {isFullScreen ? <Minimize className="w-6 h-6" /> : <Maximize className="w-6 h-6" />}
               </button>
-               <div className="flex flex-col gap-2">
-                <button 
-                  onClick={() => testAudio('ready')}
-                  className="flex items-center justify-center gap-2 px-3 py-1.5 bg-orange-100 text-orange-700 rounded-xl hover:bg-orange-200 transition-colors font-bold text-sm shadow-sm"
-                >
-                  <Volume2 className="w-4 h-4" />
-                  試聽考前預備音
-                </button>
-                <button 
-                  onClick={() => testAudio('warning')}
-                  className="flex items-center justify-center gap-2 px-3 py-1.5 bg-red-100 text-red-700 rounded-xl hover:bg-red-200 transition-colors font-bold text-sm shadow-sm"
-                >
-                  <Volume2 className="w-4 h-4" />
-                  試聽剩餘5分鐘
-                </button>
-              </div>
+              <button
+                onClick={() => {
+                  stopCurrentSound();
+                  setPreviewingStage(null);
+                  setIsSoundModalOpen(true);
+                }}
+                className={`flex items-center gap-2 px-4 py-3 rounded-2xl transition-colors font-bold text-sm shadow-sm border-2 ${
+                  soundSettings.isMuted
+                    ? 'bg-red-50 text-red-600 border-red-200 hover:bg-red-100'
+                    : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+                }`}
+              >
+                {soundSettings.isMuted ? <VolumeX className="w-5 h-5" /> : <Bell className="w-5 h-5" />}
+                <span>{soundSettings.isMuted ? '響鈴設定 (靜音)' : '響鈴聲音設定'}</span>
+              </button>
               <button 
                 onClick={startExamMode}
-                className="flex items-center gap-2 px-6 py-2 bg-sky-500 text-white rounded-2xl hover:bg-sky-600 transition-colors font-black shadow-md shadow-sky-200 text-lg"
+                className="flex items-center gap-2 px-6 py-3 bg-sky-500 text-white rounded-2xl hover:bg-sky-600 transition-colors font-black shadow-md shadow-sky-200 text-lg"
               >
                 <Play className="w-6 h-6" />
                 進入考試模式 🚀
@@ -646,6 +635,75 @@ export default function App() {
                 />
               </div>
 
+              <div className="bg-white p-6 rounded-[2rem] shadow-sm border-2 border-amber-100">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-black flex items-center gap-2 text-amber-600">
+                    <Bell className="w-6 h-6" />
+                    響鈴聲音設定
+                  </h2>
+                  <span className="text-xs font-bold px-2.5 py-1 rounded-xl bg-amber-50 text-amber-700">
+                    {soundSettings.isMuted ? '全部靜音' : `音量 ${Math.round(soundSettings.volume * 100)}%`}
+                  </span>
+                </div>
+
+                <div className="space-y-2.5 mb-4">
+                  {(['ready', 'start', 'warning', 'end'] as SoundEventType[]).map((stage) => {
+                    const meta = STAGE_METADATA[stage];
+                    const cfg = soundSettings.stages[stage];
+                    const isMutedStage = cfg.soundId === 'mute';
+                    const isPlaying = previewingStage === stage;
+
+                    return (
+                      <div
+                        key={stage}
+                        className="flex items-center justify-between gap-2 p-2.5 bg-amber-50/40 rounded-xl border border-amber-100/80"
+                      >
+                        <div className="min-w-0">
+                          <div className="text-xs font-black text-gray-500">{meta.title}</div>
+                          <div className="text-sm font-bold text-gray-800 truncate">
+                            {getSoundDisplayName(cfg)}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => testAudio(stage)}
+                          disabled={isMutedStage}
+                          className={`shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                            isMutedStage
+                              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                              : isPlaying
+                                ? 'bg-slate-800 text-white hover:bg-slate-900'
+                                : 'bg-white text-amber-700 border border-amber-200 hover:bg-amber-100'
+                          }`}
+                          title={isPlaying ? '停止試聽' : `試聽${meta.title}`}
+                        >
+                          {isPlaying ? (
+                            <>
+                              <Square className="w-3 h-3 fill-current" /> 停止
+                            </>
+                          ) : (
+                            <>
+                              <Volume2 className="w-3.5 h-3.5" /> 試聽
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <button
+                  onClick={() => {
+                    stopCurrentSound();
+                    setPreviewingStage(null);
+                    setIsSoundModalOpen(true);
+                  }}
+                  className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-black text-sm shadow-sm transition-colors flex items-center justify-center gap-2"
+                >
+                  <Settings className="w-4 h-4" />
+                  更換鈴聲 / 上傳自訂音檔
+                </button>
+              </div>
+
               <div className="bg-sky-100 p-6 rounded-[2rem]">
                 <h3 className="font-black text-sky-800 mb-3 text-lg">💡 系統階段說明</h3>
                 <ul className="text-sm text-sky-700 space-y-3 font-medium">
@@ -699,6 +757,12 @@ export default function App() {
             </div>
           </div>
         </div>
+        <SoundSettingsModal
+          isOpen={isSoundModalOpen}
+          onClose={() => setIsSoundModalOpen(false)}
+          settings={soundSettings}
+          onChange={setSoundSettings}
+        />
       </div>
     );
   }
@@ -736,6 +800,22 @@ export default function App() {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => {
+              const nextMuted = !soundSettings.isMuted;
+              if (nextMuted) stopCurrentSound();
+              setSoundSettings((prev) => ({ ...prev, isMuted: nextMuted }));
+            }}
+            className={`p-2.5 rounded-full shadow-sm transition-all flex items-center gap-1.5 px-3.5 text-sm font-bold ${
+              soundSettings.isMuted
+                ? 'bg-red-100 text-red-700 hover:bg-red-200'
+                : 'bg-white/80 hover:bg-white text-gray-600'
+            }`}
+            title={soundSettings.isMuted ? "點擊取消靜音" : "點擊快速靜音"}
+          >
+            {soundSettings.isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+            <span className="hidden sm:inline">{soundSettings.isMuted ? '已靜音' : `${Math.round(soundSettings.volume * 100)}%`}</span>
+          </button>
           <button 
             onClick={toggleFullScreen}
             className="p-2.5 bg-white/80 hover:bg-white rounded-full text-gray-600 shadow-sm transition-all"
@@ -744,7 +824,10 @@ export default function App() {
             {isFullScreen ? <Minimize className="w-6 h-6" /> : <Maximize className="w-6 h-6" />}
           </button>
           <button 
-            onClick={() => setMode('setup')}
+            onClick={() => {
+              stopCurrentSound();
+              setMode('setup');
+            }}
             className="px-5 py-2.5 bg-white/80 hover:bg-white rounded-full text-sm font-bold text-gray-600 shadow-sm transition-all"
           >
             退出考試模式 ⚙️
